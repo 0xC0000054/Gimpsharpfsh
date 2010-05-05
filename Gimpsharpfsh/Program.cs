@@ -37,11 +37,11 @@ namespace GimpsharpFsh
             yield return 
             FileSaveProcedure("file_Fsh_save",
                      "Saves Fsh images",
-                     "This plug-in saves FSH images.",
+                     "This plug-in saves Fsh images.",
                      "",
                      "",
                 "",
-                     "fsh Image",
+                     "Fsh Image",
                      "RGB*");
          
         }
@@ -75,7 +75,7 @@ namespace GimpsharpFsh
             if (File.Exists(filename))
             {
 #if DEBUG
-                Console.ReadLine();
+            //    Debugger.Launch();
 #endif
                 FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read);
                 FSHImage loadfsh = new FSHImage();
@@ -386,40 +386,55 @@ namespace GimpsharpFsh
                 sw.Close();
             }
         }
-
-        private void savealphadata(Bitmap tempbmp, BitmapItem bmpitem,FSHImage saveimg,bool multi, int fshtype)
+        /// <summary>
+        /// Saves the Alpha map data from the input bitmap
+        /// </summary>
+        /// <param name="sourcebmp">The bitmap of the gimp layer</param>
+        /// <param name="bmpitem">The item to save the alpha to</param>
+        /// <param name="fshtype">The type of Fsh</param>
+        /// <param name="hd">Is the Hd bitmap type enabled</param>
+        private void savealphadata(Bitmap sourcebmp, BitmapItem bmpitem, int fshtype, bool hd)
         {
-            Bitmap alphamap = new Bitmap(tempbmp.Width, tempbmp.Height);
+            Bitmap alphamap = new Bitmap(sourcebmp.Width, sourcebmp.Height);
             
             for (int y = 0; y < alphamap.Height; y++)
             {
                 for (int x = 0; x < alphamap.Width; x++)
                 {
-                    Color srcpxl = tempbmp.GetPixel(x, y);
-                    Color destpxl = alphamap.GetPixel(x, y);
-
-                    alphamap.SetPixel(x, y, Color.FromArgb(srcpxl.A, srcpxl.A, srcpxl.A, srcpxl.A));
-             
-                    while (alphamap.GetPixel(x, y).A < 255)
-                    {
-                        alphamap.SetPixel(x, y, Color.FromArgb(srcpxl.A,srcpxl.A, srcpxl.A));
-                    }
-                    bmpitem.Alpha = alphamap;
-                    switch (fshtype)
-                    {
-                        case 0:
-                            bmpitem.BmpType = FSHBmpType.ThirtyTwoBit;
-                            break;
-                        case 1:
-                            bmpitem.BmpType = FSHBmpType.TwentyFourBit;
-                            break;
-                        case 2:
-                            bmpitem.BmpType = FSHBmpType.DXT1;
-                            break;
-                        case 3:
-                            bmpitem.BmpType = FSHBmpType.DXT3;
-                            break;
-                    }
+                    Color srcpxl = sourcebmp.GetPixel(x, y);
+                    alphamap.SetPixel(x, y, Color.FromArgb(srcpxl.A,srcpxl.A, srcpxl.A));
+                }
+            }         
+            bmpitem.Alpha = alphamap;
+            if (hd)
+            {
+                switch (fshtype)
+                {
+                    case 0:
+                        bmpitem.BmpType = FSHBmpType.ThirtyTwoBit;
+                        break;
+                    case 1:
+                        bmpitem.BmpType = FSHBmpType.TwentyFourBit;
+                        break;
+                    case 2:
+                        bmpitem.BmpType = FSHBmpType.DXT1;
+                        break;
+                    case 3:
+                        bmpitem.BmpType = FSHBmpType.DXT3;
+                        break;
+                }
+            }
+            else
+            {
+                switch (fshtype)
+                {
+                    case 0:
+                        bmpitem.BmpType = FSHBmpType.DXT1;
+                        break;
+                    case 1:
+                        bmpitem.BmpType = FSHBmpType.DXT3;
+                        break;
+                    
                 }
             }
             #if DEBUG
@@ -436,7 +451,7 @@ namespace GimpsharpFsh
         /// <param name="mipenabled">enable the generate mips checkbox</param>
         /// <param name="mipchecked">check the generate mips checkbox</param>
         /// <returns></returns>
-        protected GimpDialog CreateSaveDialog(bool hd,int cboindex,bool mipenabled,bool mipchecked)
+        protected GimpDialog CreateSaveDialog(bool hd, int cboindex, bool mipenabled, bool mipchecked)
         {
             gimp_ui_init("Fsh Save", false);
             GimpDialog dialog = new GimpDialog("Fsh Save", "Fsh Save", IntPtr.Zero, DialogFlags.Modal, null, null,"Ok",ResponseType.Ok,"Cancel",ResponseType.Cancel);
@@ -459,16 +474,16 @@ namespace GimpsharpFsh
             dialog.ShowAll();
             return dialog;
         }
-        private Settings settings = null;
-        FSHImage[] mipimgs = null;
+        private Settings settings = null;   
+        private FSHImage[] mipimgs = null;
         private string setpath = System.IO.Path.Combine(Gimp.Gimp.Directory, "GimpsharpFsh.xml");
         protected override bool Save(Gimp.Image image, Drawable drawable, string filename)
         {
             FSHImage saveimg = new FSHImage();
-            BitmapItem bmpitem = new BitmapItem();
+            BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-            Debugger.Launch();
+           // Debugger.Launch();
 #endif
             try
             {
@@ -522,26 +537,26 @@ namespace GimpsharpFsh
                 }
                 hd = (image.Width >= 256 && image.Height >= 256) ? true : false; // is the image hd size
                 int selindex = 0;
-                if (GetAlphaType(image)) // is the alpha dxt3?
+                if (GetAlphaType(image)) // is the alpha dxt3 or 32-bit?
                 {
                     if (hd)
                     {
-                        selindex = 0;
+                        selindex = 0; // 32-bit RGBA
                     }
                     else
                     {
-                        selindex = 3;
+                        selindex = 3; // Dxt3
                     }
                 }
                 else
                 {
                     if (hd)
                     {
-                        selindex = 0;
+                        selindex = 0; // 24-bit RGB
                     }
                     else
                     {
-                        selindex = 1;
+                        selindex = 1; // Dxt1
                     }
                 }
                 GimpDialog dlg = CreateSaveDialog(hd,selindex, mipenabled, mipchecked);
@@ -573,7 +588,7 @@ namespace GimpsharpFsh
 #endif
                             multiitem.Bitmap = tempbmp;
 
-                            savealphadata(tempbmp, multiitem, saveimg, true, combo.Active);
+                            savealphadata(tempbmp, multiitem, combo.Active, hd);
                             if (mipbtn.Active)
                             {
                                 Generatemips(multiitem);
@@ -598,7 +613,7 @@ namespace GimpsharpFsh
                     tempbmp.Save(@"C:\Dev_projects\sc4\gimpsharpfsh\Gimpsharpfsh\bin\Debug\tempbmp.png", ImageFormat.Png);
 #endif
                         bmpitem.Bitmap = tempbmp;
-                        savealphadata(tempbmp, bmpitem, saveimg, false, combo.Active);
+                        savealphadata(tempbmp, bmpitem, combo.Active, hd);
                        
                         if (mipbtn.Active == true)
                         {
@@ -624,7 +639,7 @@ namespace GimpsharpFsh
                     {
                         WriteTgi(filename + ".TGI", 4);
                     }
-                    if (mipbtn.Active == true)
+                    if (mipbtn.Active)
                     {
                         string filepath = null;
                         for (int i = 3; i >= 0; i--)
