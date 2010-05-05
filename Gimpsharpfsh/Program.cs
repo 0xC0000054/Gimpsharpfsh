@@ -77,112 +77,104 @@ namespace GimpsharpFsh
 #if DEBUG
             //    Debugger.Launch();
 #endif
-                FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read);
-                FSHImage loadfsh = new FSHImage();
-                BitmapItem bmpitem = new BitmapItem();
-                FSHEntryHeader entryhead;
                 try
                 {
-                    loadfsh.Load(fs);
+                    FSHImage loadfsh = new FSHImage();
+                    BitmapItem bmpitem = new BitmapItem();
 
-                    int dirnum = -1;
-                    string[] dirname = new string[loadfsh.Bitmaps.Count];
-                    short[] width = new short[loadfsh.Bitmaps.Count];
-                    short[] height = new short[loadfsh.Bitmaps.Count];
-
-                    foreach (FSHDirEntry dir in loadfsh.Directory)
+                    using (FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read))
                     {
-                        dirnum++;
-                        entryhead = new FSHEntryHeader();
-                        entryhead = loadfsh.GetEntryHeader(dir.offset);
-                        width[dirnum] = entryhead.width;
-                        height[dirnum] = entryhead.height;
-                        dirname[dirnum] = Encoding.ASCII.GetString(dir.name);
-                    }
+                        loadfsh.Load(fs);
 
-                    if (File.Exists(setpath))
-                    {
-                        if (settings == null)
+                        int dirnum = -1;
+                        string[] dirname = new string[loadfsh.Bitmaps.Count];
+                        short[] width = new short[loadfsh.Bitmaps.Count];
+                        short[] height = new short[loadfsh.Bitmaps.Count];
+
+                        foreach (FSHDirEntry dir in loadfsh.Directory)
                         {
-                            settings = new Settings(setpath);
+                            dirnum++;
+                            FSHEntryHeader entryhead = new FSHEntryHeader();
+                            entryhead = loadfsh.GetEntryHeader(dir.offset);
+                            width[dirnum] = entryhead.width;
+                            height[dirnum] = entryhead.height;
+                            dirname[dirnum] = Encoding.ASCII.GetString(dir.name);
                         }
-                    }
-                    else
-                    {
-                        Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml");
-                        using (Stream resourceStream = Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml"))
+
+
+                        string tgistr = filename + ".TGI";
+                        if (File.Exists(tgistr))
                         {
-                            // Now read s into a byte buffer.
-                            byte[] bytes = new byte[resourceStream.Length];
-                            int numBytesToRead = (int)resourceStream.Length;
-                            int numBytesRead = 0;
-                            while (numBytesToRead > 0)
+                            using (StreamReader sr = new StreamReader(tgistr))
                             {
-                                // Read may return anything from 0 to numBytesToRead.
-                                int n = resourceStream.Read(bytes, numBytesRead, numBytesToRead);
-                                // The end of the file is reached.
-                                if (n == 0)
-                                    break;
-                                numBytesRead += n;
-                                numBytesToRead -= n;
-                            }
-                            File.WriteAllBytes(setpath, bytes);
-                        }
-                        if (settings == null)
-                        {
-                            settings = new Settings(setpath);
-                        }
-                    }
-                    string tgistr = filename + ".TGI";
-                    if (File.Exists(tgistr))
-                    {
-                        using (StreamReader sr = new StreamReader(tgistr))
-                        {
-                            string line;
-                            int lncnt = 0;
+                                string line;
+                                int lncnt = 0;
 
-                            while ((line = sr.ReadLine()) != null)
-                            {
-                                lncnt++;
-                                if (line != "")
+                                while ((line = sr.ReadLine()) != null)
                                 {
-                                    if (line.Equals("7ab50e44", StringComparison.InvariantCultureIgnoreCase))
+                                    lncnt++;
+                                    if (!string.IsNullOrEmpty(line))
                                     {
-                                        Debug.WriteLine("is fsh");
-                                    }
-                                    else
-                                    {
-                                        if (lncnt == 3)
+                                        if (line.Equals("7ab50e44", StringComparison.InvariantCultureIgnoreCase))
                                         {
-                                            groupid = line;
+                                            continue;
                                         }
-                                        else if (lncnt == 5)
+                                        else
                                         {
-                                            instanceid = line;
+                                            if (lncnt == 3)
+                                            {
+                                                groupid = line;
+                                            }
+                                            else if (lncnt == 5)
+                                            {
+                                                instanceid = line;
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                    bool blendchecked = false;
-                    if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
-                    {
-                        blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
-                    }
-                    // to disable alpha blending
-                    if (filename.Contains("noblend"))
-                    {
-                        blendchecked = false;
-                    }
-
-                    Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
-
-                    if (loadfsh.Bitmaps.Count > 1)
-                    {
-                        for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
+                        bool blendchecked = false;
+                        if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
                         {
-                            bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
+                            blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
+                        }
+                        // to disable alpha blending
+                        if (filename.Contains("noblend"))
+                        {
+                            blendchecked = false;
+                        }
+
+                        Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
+
+                        if (loadfsh.Bitmaps.Count > 1)
+                        {
+                            for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
+                            {
+                                bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
+                                Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
+                                Bitmap alpha = null;
+                                if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
+                                {
+                                    alpha = new Bitmap(bitmap.Width, bitmap.Height);
+                                    for (int y = 0; y < alpha.Height; y++)
+                                    {
+                                        for (int x = 0; x < alpha.Width; x++)
+                                        {
+                                            alpha.SetPixel(x, y, Color.White);
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    alpha = new Bitmap(bmpitem.Alpha);
+                                }
+                                buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked);
+                            }
+                        }
+                        else
+                        {
+                            bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
                             Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
                             Bitmap alpha = null;
                             if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
@@ -200,35 +192,14 @@ namespace GimpsharpFsh
                             {
                                 alpha = new Bitmap(bmpitem.Alpha);
                             }
-                            buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked);
+                            buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
                         }
-                    }
-                    else
-                    {
-                        bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
-                        Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
-                        Bitmap alpha = null;
-                        if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
-                        {
-                            alpha = new Bitmap(bitmap.Width, bitmap.Height);
-                            for (int y = 0; y < alpha.Height; y++)
-                            {
-                                for (int x = 0; x < alpha.Width; x++)
-                                {
-                                    alpha.SetPixel(x, y, Color.White);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            alpha = new Bitmap(bmpitem.Alpha);
-                        }
-                        buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
-                    }
 
-                    image.Filename = filename;
 
-                    return image;
+                        image.Filename = filename;
+
+                        return image;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -325,8 +296,6 @@ namespace GimpsharpFsh
         }
         private void WriteTgi(string filename, int zoom)
         {
-            FileStream fs = new FileStream(filename + ".TGI", FileMode.OpenOrCreate, FileAccess.Write);
-            StreamWriter sw = new StreamWriter(fs);
             char endreg = Convert.ToChar("");
             char end64 = Convert.ToChar("");
             char end32 = Convert.ToChar("");
@@ -334,56 +303,101 @@ namespace GimpsharpFsh
             char end8 = Convert.ToChar("");
             try
             {
-                if (instanceid.ToUpper().EndsWith("E") || instanceid.ToUpper().EndsWith("D") || instanceid.ToUpper().EndsWith("C") || instanceid.ToUpper().EndsWith("B") || instanceid.ToUpper().EndsWith("A"))
+                using (FileStream fs = new FileStream(filename + ".TGI", FileMode.OpenOrCreate, FileAccess.Write))
                 {
-                    endreg = Convert.ToChar("E");
-                    end64 = Convert.ToChar("D");
-                    end32 = Convert.ToChar("C");
-                    end16 = Convert.ToChar("B");
-                    end8 = Convert.ToChar("A");
-                }
-                else if (instanceid.ToUpper().EndsWith("9") || instanceid.ToUpper().EndsWith("8") || instanceid.ToUpper().EndsWith("7") || instanceid.ToUpper().EndsWith("6") || instanceid.ToUpper().EndsWith("5"))
-                {
-                    endreg = Convert.ToChar("9");
-                    end64 = Convert.ToChar("8");
-                    end32 = Convert.ToChar("7");
-                    end16 = Convert.ToChar("6");
-                    end8 = Convert.ToChar("5");
-                }
-                else if (instanceid.ToUpper().EndsWith("0") || instanceid.ToUpper().EndsWith("1") || instanceid.ToUpper().EndsWith("2") || instanceid.ToUpper().EndsWith("3") || instanceid.ToUpper().EndsWith("4"))
-                {
-                    endreg = Convert.ToChar("4");
-                    end64 = Convert.ToChar("3");
-                    end32 = Convert.ToChar("2");
-                    end16 = Convert.ToChar("1");
-                    end8 = Convert.ToChar("0");
-                }
-                sw.WriteLine("7ab50e44\t\n");
-                sw.WriteLine(string.Format("{0:X8}", groupid + "\n"));
+                    using (StreamWriter sw = new StreamWriter(fs))
+                    {
 
-                switch (zoom)
-                {
-                    case 0:
-                        sw.WriteLine(string.Format("{0:X8}",instanceid.Substring(0, 7) + end8));
-                        break;
-                    case 1:
-                        sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end16));
-                        break;
-                    case 2:
-                        sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end32));
-                        break;
-                    case 3:
-                        sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end64));
-                        break;
-                    case 4:
-                        sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + endreg));
-                        break;
+                        if (instanceid.ToUpper().EndsWith("E") || instanceid.ToUpper().EndsWith("D") || instanceid.ToUpper().EndsWith("C") || instanceid.ToUpper().EndsWith("B") || instanceid.ToUpper().EndsWith("A"))
+                        {
+                            endreg = Convert.ToChar("E");
+                            end64 = Convert.ToChar("D");
+                            end32 = Convert.ToChar("C");
+                            end16 = Convert.ToChar("B");
+                            end8 = Convert.ToChar("A");
+                        }
+                        else if (instanceid.ToUpper().EndsWith("9") || instanceid.ToUpper().EndsWith("8") || instanceid.ToUpper().EndsWith("7") || instanceid.ToUpper().EndsWith("6") || instanceid.ToUpper().EndsWith("5"))
+                        {
+                            endreg = Convert.ToChar("9");
+                            end64 = Convert.ToChar("8");
+                            end32 = Convert.ToChar("7");
+                            end16 = Convert.ToChar("6");
+                            end8 = Convert.ToChar("5");
+                        }
+                        else if (instanceid.ToUpper().EndsWith("0") || instanceid.ToUpper().EndsWith("1") || instanceid.ToUpper().EndsWith("2") || instanceid.ToUpper().EndsWith("3") || instanceid.ToUpper().EndsWith("4"))
+                        {
+                            endreg = Convert.ToChar("4");
+                            end64 = Convert.ToChar("3");
+                            end32 = Convert.ToChar("2");
+                            end16 = Convert.ToChar("1");
+                            end8 = Convert.ToChar("0");
+                        }
+                        sw.WriteLine("7ab50e44\t\n");
+                        sw.WriteLine(string.Format("{0:X8}", groupid + "\n"));
+
+                        switch (zoom)
+                        {
+                            case 0:
+                                sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end8));
+                                break;
+                            case 1:
+                                sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end16));
+                                break;
+                            case 2:
+                                sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end32));
+                                break;
+                            case 3:
+                                sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + end64));
+                                break;
+                            case 4:
+                                sw.WriteLine(string.Format("{0:X8}", instanceid.Substring(0, 7) + endreg));
+                                break;
+                        }
+                    }
                 }
             }
-            finally
+            catch (Exception ex)
             {
-                sw.Flush();
-                sw.Close();
+                throw ex;
+            }
+            
+        }
+
+        private void LoadSettings()
+        {
+            string setpath = System.IO.Path.Combine(Gimp.Gimp.Directory, "GimpsharpFsh.xml");
+            if (File.Exists(setpath))
+            {
+                if (settings == null)
+                {
+                    settings = new Settings(setpath);
+                }
+            }
+            else
+            {
+                Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml");
+                using (Stream resourceStream = Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml"))
+                {
+                    // Now read s into a byte buffer.
+                    byte[] bytes = new byte[resourceStream.Length];
+                    int numBytesToRead = (int)resourceStream.Length;
+                    int numBytesRead = 0;
+                    while (numBytesToRead > 0)
+                    {
+                        // Read may return anything from 0 to numBytesToRead.
+                        int n = resourceStream.Read(bytes, numBytesRead, numBytesToRead);
+                        // The end of the file is reached.
+                        if (n == 0)
+                            break;
+                        numBytesRead += n;
+                        numBytesToRead -= n;
+                    }
+                    File.WriteAllBytes(setpath, bytes);
+                }
+                if (settings == null)
+                {
+                    settings = new Settings(setpath);
+                }
             }
         }
         /// <summary>
@@ -442,6 +456,7 @@ namespace GimpsharpFsh
             #endif
            
         }
+
         private ComboBox combo = null;
         private CheckButton mipbtn = null;
         /// <summary>
@@ -476,7 +491,6 @@ namespace GimpsharpFsh
         }
         private Settings settings = null;   
         private FSHImage[] mipimgs = null;
-        private string setpath = System.IO.Path.Combine(Gimp.Gimp.Directory, "GimpsharpFsh.xml");
         protected override bool Save(Gimp.Image image, Drawable drawable, string filename)
         {
             FSHImage saveimg = new FSHImage();
@@ -487,39 +501,7 @@ namespace GimpsharpFsh
 #endif
             try
             {
-                if (File.Exists(setpath))
-                {
-                    if (settings == null)
-                    {
-                        settings = new Settings(setpath);
-                    }
-                }
-                else
-                {
-                    Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml");
-                    using (Stream resourceStream = Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml"))
-                    {
-                        // Now read s into a byte buffer.
-                        byte[] bytes = new byte[resourceStream.Length];
-                        int numBytesToRead = (int)resourceStream.Length;
-                        int numBytesRead = 0;
-                        while (numBytesToRead > 0)
-                        {
-                            // Read may return anything from 0 to numBytesToRead.
-                            int n = resourceStream.Read(bytes, numBytesRead, numBytesToRead);
-                            // The end of the file is reached.
-                            if (n == 0)
-                                break;
-                            numBytesRead += n;
-                            numBytesToRead -= n;
-                        }
-                        File.WriteAllBytes(setpath, bytes);
-                        if (settings == null)
-                        {
-                            settings = new Settings(setpath);
-                        }
-                    }
-                }
+                LoadSettings();
                 bool mipenabled = false;
                 bool mipchecked = false;
                 bool hd = false;
