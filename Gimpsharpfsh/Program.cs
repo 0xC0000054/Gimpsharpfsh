@@ -18,7 +18,6 @@ namespace GimpsharpFsh
     {
        static void Main(string[] args)
         {
-          Debugger.Launch();
           new Fsh(args);
         }
        
