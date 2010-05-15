@@ -18,6 +18,7 @@ namespace GimpsharpFsh
     {
        static void Main(string[] args)
         {
+          Debugger.Launch();
           new Fsh(args);
         }
        
@@ -79,6 +80,7 @@ namespace GimpsharpFsh
 #endif
                 try
                 {
+                    LoadSettings();
                     FSHImage loadfsh = new FSHImage();
                     BitmapItem bmpitem = new BitmapItem();
 
@@ -448,7 +450,6 @@ namespace GimpsharpFsh
                     case 1:
                         bmpitem.BmpType = FSHBmpType.DXT3;
                         break;
-                    
                 }
             }
             #if DEBUG
