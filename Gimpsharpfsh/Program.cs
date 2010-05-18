@@ -220,10 +220,9 @@ namespace GimpsharpFsh
             if (alphablend)
             {
                 PixelRgn rgn = new PixelRgn(image.Layers[layerpos], true, false);
-                bglayer.AddAlpha();
                 Bitmap destbmp = new Bitmap(fshbmp);
-                BitmapData bdata = fshbmp.LockBits(new System.Drawing.Rectangle(0, 0, fshbmp.Width, fshbmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-                BitmapData aldata = fshalpha.LockBits(new System.Drawing.Rectangle(0, 0, fshalpha.Width, fshalpha.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                BitmapData bdata = fshbmp.LockBits(new System.Drawing.Rectangle(0, 0, fshbmp.Width, fshbmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+                BitmapData aldata = fshalpha.LockBits(new System.Drawing.Rectangle(0, 0, fshalpha.Width, fshalpha.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 BitmapData destdata = destbmp.LockBits(new System.Drawing.Rectangle(0, 0, destbmp.Width, destbmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
                 IntPtr srcscan0 = bdata.Scan0;
                 IntPtr destscan0 = destdata.Scan0;
@@ -261,31 +260,32 @@ namespace GimpsharpFsh
             else
             {
                 PixelRgn rgn = new PixelRgn(image.Layers[layerpos], true, false);
-                Bitmap destbmp = new Bitmap(fshbmp);
-                BitmapData bdata = fshbmp.LockBits(new System.Drawing.Rectangle(0, 0, fshbmp.Width, fshbmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
+                Bitmap destbmp = new Bitmap(fshbmp.Width, fshbmp.Height);
+                BitmapData bdata = fshbmp.LockBits(new System.Drawing.Rectangle(0, 0, fshbmp.Width, fshbmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format24bppRgb);
                 BitmapData destdata = destbmp.LockBits(new System.Drawing.Rectangle(0, 0, destbmp.Width, destbmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
                 IntPtr srcscan0 = bdata.Scan0;
                 IntPtr destscan0 = destdata.Scan0;
-                int bytes = bdata.Stride * bdata.Height;
+                int bytes = destdata.Stride * destdata.Height;
                 byte[] tmpdata = new byte[bytes];
 
                 unsafe
                 {
                     int offset = bdata.Stride - bdata.Width * 3;
-                    int destoffset = destdata.Stride - destdata.Width * 3;
+                    int destoffset = destdata.Stride - destdata.Width * 4;
                     byte* dest = (byte*)destscan0.ToPointer();
                     byte* src = (byte*)srcscan0.ToPointer();
 
                     for (int pPixel = 0; pPixel < destbmp.Width * destbmp.Height; pPixel++)
                     {
-                        for (int iBGR = 0; iBGR < 3; iBGR++)
+                        for (int iBGR = 0; iBGR < 4; iBGR++)
                         {
                             dest[0] = src[2]; // red
                             dest[1] = src[1]; // green
                             dest[2] = src[0]; // blue
+                            dest[3] = 255; // alpha 
                         }
-                        src += 3;
-                        dest += 3;
+                        src += 3; // src is 24-bit 
+                        dest += 4;
                     }
                     Marshal.Copy(destscan0, tmpdata, 0, bytes);
                 }
