@@ -50,7 +50,6 @@ namespace GimpsharpFsh
             base.Query();
             RegisterLoadHandler("fsh,qfs", "");
             RegisterSaveHandler("fsh,qfs", "");
-            
         }
         private GimpDialog ErrorDlg(string title, string exmessage, string stack)
         {
@@ -285,8 +284,8 @@ namespace GimpsharpFsh
                             dest[1] = src[1]; // green
                             dest[2] = src[0]; // blue
                         }
-                        src += 4;
-                        dest += 4;
+                        src += 3;
+                        dest += 3;
                     }
                     Marshal.Copy(destscan0, tmpdata, 0, bytes);
                 }
@@ -376,7 +375,6 @@ namespace GimpsharpFsh
             }
             else
             {
-                Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml");
                 using (Stream resourceStream = Assembly.GetAssembly(typeof(Fsh)).GetManifestResourceStream("GimpsharpFsh.GimpsharpFsh.xml"))
                 {
                     // Now read s into a byte buffer.
@@ -459,6 +457,7 @@ namespace GimpsharpFsh
 
         private ComboBox combo = null;
         private CheckButton mipbtn = null;
+        private CheckButton fshwritecb = null;
         /// <summary>
         /// Create a Fsh save dialog
         /// </summary>
@@ -466,7 +465,7 @@ namespace GimpsharpFsh
         /// <param name="mipenabled">enable the generate mips checkbox</param>
         /// <param name="mipchecked">check the generate mips checkbox</param>
         /// <returns></returns>
-        protected GimpDialog CreateSaveDialog(bool hd, int cboindex, bool mipenabled, bool mipchecked)
+        protected GimpDialog CreateSaveDialog(bool hd, int cboindex, bool mipenabled, bool mipchecked, bool fshwritechecked)
         {
             gimp_ui_init("Fsh Save", false);
             GimpDialog dialog = new GimpDialog("Fsh Save", "Fsh Save", IntPtr.Zero, DialogFlags.Modal, null, null,"Ok",ResponseType.Ok,"Cancel",ResponseType.Cancel);
@@ -486,6 +485,9 @@ namespace GimpsharpFsh
             mipbtn.Active = mipchecked;
             mipbtn.Visible = mipenabled;
             box1.PackStart(mipbtn,true,false,3);
+            fshwritecb = new CheckButton("Fshwrite Compression");
+            fshwritecb.Active = fshwritechecked;
+            box1.PackStart(fshwritecb, true, false, 3);
             dialog.ShowAll();
             return dialog;
         }
@@ -497,7 +499,7 @@ namespace GimpsharpFsh
             BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-           // Debugger.Launch();
+            //Debugger.Launch();
 #endif
             try
             {
@@ -505,6 +507,7 @@ namespace GimpsharpFsh
                 bool mipenabled = false;
                 bool mipchecked = false;
                 bool hd = false;
+                bool fshwritechecked = false;
                 if (image.Width >= 128 && image.Height >= 128)
                 {
                     mipenabled = true;
@@ -517,36 +520,40 @@ namespace GimpsharpFsh
                 {
                     mipchecked = bool.Parse(settings.GetSetting("savedlg/mipchecked", bool.FalseString));
                 }
+                if (!string.IsNullOrEmpty(settings.GetSetting("savedlg/fshwrite_checked", bool.TrueString)))
+                {
+                    fshwritechecked = bool.Parse(settings.GetSetting("savedlg/fshwrite_checked", bool.TrueString));
+                }
                 hd = (image.Width >= 256 && image.Height >= 256) ? true : false; // is the image hd size
                 int selindex = 0;
                 if (GetAlphaType(image)) // is the alpha dxt3 or 32-bit?
                 {
-                    if (hd)
+                    if (hd)// 32-bit RGBA has an index of 0 on the combo
                     {
                         selindex = 0; // 32-bit RGBA
                     }
                     else
                     {
-                        selindex = 3; // Dxt3
+                        selindex = 1; // Dxt3
                     }
                 }
                 else
                 {
-                    if (hd)
+                    if (hd) // 24-bit RGB has an index of 1 on the combo
                     {
-                        selindex = 0; // 24-bit RGB
+                        selindex = 1; // 24-bit RGB 
                     }
                     else
                     {
-                        selindex = 1; // Dxt1
+                        selindex = 0; // Dxt1 
                     }
                 }
-                GimpDialog dlg = CreateSaveDialog(hd,selindex, mipenabled, mipchecked);
+                GimpDialog dlg = CreateSaveDialog(hd,selindex, mipenabled, mipchecked, fshwritechecked);
                 if (dlg.Run() == ResponseType.Ok)
                 {
                     settings.PutSetting("savedlg/typeSelected", combo.Active);
                     settings.PutSetting("savedlg/mipchecked", mipbtn.Active.ToString());
-
+                    settings.PutSetting("savedlg/fshwrite_checked", fshwritecb.Active.ToString());
 
                     if (image.Layers.Count > 1)
                     {
@@ -597,7 +604,7 @@ namespace GimpsharpFsh
                         bmpitem.Bitmap = tempbmp;
                         savealphadata(tempbmp, bmpitem, combo.Active, hd);
                        
-                        if (mipbtn.Active == true)
+                        if (mipbtn.Active)
                         {
                             Generatemips(bmpitem);
                         }
@@ -668,7 +675,7 @@ namespace GimpsharpFsh
         {
             try
             {
-                if (IsDXTFsh(image))
+                if (IsDXTFsh(image) && fshwritecb.Active)
                 {
                     Fshwrite fw = new Fshwrite();
                     foreach (BitmapItem bi in image.Bitmaps)
@@ -725,7 +732,8 @@ namespace GimpsharpFsh
 
             using (Bitmap tempbmp = BitsToBitmapRGB32(buf, image.Width, image.Height))
             {
-                if (tempbmp.GetPixel(0, 0).ToArgb() == Color.Black.ToArgb())
+                Color srcclr = tempbmp.GetPixel(0, 0);
+                if (srcclr.ToArgb() == Color.Black.ToArgb() || srcclr.A < 255) // is the color black or does it have semi transparent alpha 
                 {
                     dxt3alpha = true;
                 }
@@ -735,106 +743,106 @@ namespace GimpsharpFsh
                 }
             }
             return dxt3alpha;
-        }
-           private Bitmap BitsToBitmapRGB32(Byte[] bytes, int width, int height)
+       }
+       private Bitmap BitsToBitmapRGB32(Byte[] bytes, int width, int height)
+       {
+           //swap RGBA to BGRA
+           Byte tmp;
+           for (int x = 4; x < bytes.GetLength(0); x += 4)
            {
-               //swap RGBA to BGRA
-               Byte tmp;
-               for (int x = 4; x < bytes.GetLength(0); x += 4)
-               {
-                   tmp = bytes[(x + 2)];
-                   bytes[x + 2] = bytes[x];
-                   bytes[x] = tmp;
-               }
-               if (bytes.GetLength(0) < width * height * 4)
-               {
-                   return null;
-               }
-               Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
-               int i;
-               BitmapData data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height),
-                   ImageLockMode.WriteOnly, bmp.PixelFormat);
-
-               if (data.Stride == width * 4)
-               {
-                   Marshal.Copy(bytes, 0, data.Scan0, width * height * 4);
-               }
-               else
-               {
-                   for (i = 0; i < bmp.Height; i++)
-                   {
-                       IntPtr p = new IntPtr(data.Scan0.ToInt32() + data.Stride * i);
-                       Marshal.Copy(bytes, i * bmp.Width * 4, p, bmp.Width * 4);
-                   }
-               }
-               bmp.UnlockBits(data);
-               return bmp;
+               tmp = bytes[(x + 2)];
+               bytes[x + 2] = bytes[x];
+               bytes[x] = tmp;
            }
-           private void Generatemips(BitmapItem bmpitem)
+           if (bytes.GetLength(0) < width * height * 4)
            {
+               return null;
+           }
+           Bitmap bmp = new Bitmap(width, height, PixelFormat.Format32bppArgb);
+           int i;
+           BitmapData data = bmp.LockBits(new System.Drawing.Rectangle(0, 0, bmp.Width, bmp.Height),
+               ImageLockMode.WriteOnly, bmp.PixelFormat);
+
+           if (data.Stride == width * 4)
+           {
+               Marshal.Copy(bytes, 0, data.Scan0, width * height * 4);
+           }
+           else
+           {
+               for (i = 0; i < bmp.Height; i++)
+               {
+                   IntPtr p = new IntPtr(data.Scan0.ToInt32() + data.Stride * i);
+                   Marshal.Copy(bytes, i * bmp.Width * 4, p, bmp.Width * 4);
+               }
+           }
+           bmp.UnlockBits(data);
+           return bmp;
+       }
+       private void Generatemips(BitmapItem bmpitem)
+       {
+           if (bmpitem.Bitmap.Width >= 128 && bmpitem.Bitmap.Height >= 128)
+           {
+               
+               Bitmap[] bmps = new Bitmap[4];
+               Bitmap[] alphas = new Bitmap[4];
+
+               // 0 = 8, 1 = 16, 2 = 32, 3 = 64
+               System.Drawing.Image.GetThumbnailImageAbort abort = new System.Drawing.Image.GetThumbnailImageAbort(thabort);
                if (bmpitem.Bitmap.Width >= 128 && bmpitem.Bitmap.Height >= 128)
                {
                    
-                   Bitmap[] bmps = new Bitmap[4];
-                   Bitmap[] alphas = new Bitmap[4];
-
-                   // 0 = 8, 1 = 16, 2 = 32, 3 = 64
-                   System.Drawing.Image.GetThumbnailImageAbort abort = new System.Drawing.Image.GetThumbnailImageAbort(thabort);
-                   if (bmpitem.Bitmap.Width >= 128 && bmpitem.Bitmap.Height >= 128)
+                   Bitmap bmp = new Bitmap(bmpitem.Bitmap);
+                   bmps[0] = (Bitmap)bmp.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
+                   bmps[1] = (Bitmap)bmp.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
+                   bmps[2] = (Bitmap)bmp.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
+                   bmps[3] = (Bitmap)bmp.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
+                   //alpha
+                   Bitmap alpha = new Bitmap(bmpitem.Alpha);
+                   alphas[0] = (Bitmap)alpha.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
+                   alphas[1] = (Bitmap)alpha.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
+                   alphas[2] = (Bitmap)alpha.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
+                   alphas[3] = (Bitmap)alpha.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
+               
+                   if (mipimgs == null)
                    {
-                       
-                       Bitmap bmp = new Bitmap(bmpitem.Bitmap);
-                       bmps[0] = (Bitmap)bmp.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
-                       bmps[1] = (Bitmap)bmp.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
-                       bmps[2] = (Bitmap)bmp.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
-                       bmps[3] = (Bitmap)bmp.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
-                       //alpha
-                       Bitmap alpha = new Bitmap(bmpitem.Alpha);
-                       alphas[0] = (Bitmap)alpha.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
-                       alphas[1] = (Bitmap)alpha.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
-                       alphas[2] = (Bitmap)alpha.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
-                       alphas[3] = (Bitmap)alpha.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
-                   
-                       if (mipimgs == null)
+                       mipimgs = new FSHImage[4];
+                   }
+                   for (int i = 0; i < 4; i++)
+                   {
+                       if (bmps[i] != null && alphas[i] != null)
                        {
-                           mipimgs = new FSHImage[4];
-                       }
-                       for (int i = 0; i < 4; i++)
-                       {
-                           if (bmps[i] != null && alphas[i] != null)
+                           BitmapItem mipitm = new BitmapItem();
+                           mipitm.Bitmap = bmps[i];
+                           mipitm.Alpha = alphas[i];
+                           if (alphas[i].GetPixel(0, 0).ToArgb() == Color.Black.ToArgb())
                            {
-                               BitmapItem mipitm = new BitmapItem();
-                               mipitm.Bitmap = bmps[i];
-                               mipitm.Alpha = alphas[i];
-                               if (alphas[i].GetPixel(0, 0).ToArgb() == Color.Black.ToArgb())
-                               {
-                                   mipitm.BmpType = FSHBmpType.DXT3;
-                               }
-                               else
-                               {
-                                   mipitm.BmpType = FSHBmpType.DXT1;
-                               }
-                               if (mipimgs[i] == null)
-                               {
-                                   mipimgs[i] = new FSHImage();
-                               }
-                               if (mipimgs[i] != null)
-                               {
-                                   mipimgs[i].Bitmaps.Add(mipitm);
-                                   mipimgs[i].UpdateDirty();
-                               }
+                               mipitm.BmpType = FSHBmpType.DXT3;
+                           }
+                           else
+                           {
+                               mipitm.BmpType = FSHBmpType.DXT1;
+                           }
+                           if (mipimgs[i] == null)
+                           {
+                               mipimgs[i] = new FSHImage();
+                           }
+                           if (mipimgs[i] != null)
+                           {
+                               mipimgs[i].Bitmaps.Add(mipitm);
+                               mipimgs[i].UpdateDirty();
                            }
                        }
                    }
                }
            }
-           private bool thabort()
-           {
-               return false;
-           }
-           private string GetFileName(string path, string add)
-           {
-               return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) + System.IO.Path.DirectorySeparatorChar, System.IO.Path.GetFileNameWithoutExtension(path) + add + System.IO.Path.GetExtension(path));
-           }
-        }
+       }
+       private bool thabort()
+       {
+           return false;
+       }
+       private string GetFileName(string path, string add)
+       {
+           return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) + System.IO.Path.DirectorySeparatorChar, System.IO.Path.GetFileNameWithoutExtension(path) + add + System.IO.Path.GetExtension(path));
+       }
+    }
 }
