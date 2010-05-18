@@ -5,5 +5,6 @@
   </loaddlg>
   <savedlg>
     <mipchecked>False</mipchecked>
+    <fshwrite_checked>True</fshwrite_checked>
   </savedlg>
 </settings>
