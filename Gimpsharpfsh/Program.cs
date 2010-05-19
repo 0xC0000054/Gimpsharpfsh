@@ -499,7 +499,7 @@ namespace GimpsharpFsh
             BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-            //Debugger.Launch();
+            Debugger.Launch();
 #endif
             try
             {
@@ -732,15 +732,18 @@ namespace GimpsharpFsh
 
             using (Bitmap tempbmp = BitsToBitmapRGB32(buf, image.Width, image.Height))
             {
-                Color srcclr = tempbmp.GetPixel(0, 0);
-                if (srcclr.ToArgb() == Color.Black.ToArgb() || srcclr.A < 255) // is the color black or does it have semi transparent alpha 
+                for (int y = 0; y < tempbmp.Height; y++)
                 {
-                    dxt3alpha = true;
-                }
-                else
-                {
-                    dxt3alpha = false;
-                }
+                    for (int x = 0; x < tempbmp.Width; x++)
+                    {
+                        Color srcpxl = tempbmp.GetPixel(x, y);
+
+                        if (srcpxl.A < 255)
+                        {
+                            dxt3alpha = true;
+                        }
+                    }
+                }     
             }
             return dxt3alpha;
        }
@@ -842,7 +845,7 @@ namespace GimpsharpFsh
        }
        private string GetFileName(string path, string add)
        {
-           return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path) + System.IO.Path.DirectorySeparatorChar, System.IO.Path.GetFileNameWithoutExtension(path) + add + System.IO.Path.GetExtension(path));
+           return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), System.IO.Path.GetFileNameWithoutExtension(path) + add + System.IO.Path.GetExtension(path));
        }
     }
 }
