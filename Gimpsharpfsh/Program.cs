@@ -115,7 +115,7 @@ namespace GimpsharpFsh
                                     lncnt++;
                                     if (!string.IsNullOrEmpty(line))
                                     {
-                                        if (line.Equals("7ab50e44", StringComparison.InvariantCultureIgnoreCase))
+                                        if (line.Equals("7ab50e44", StringComparison.OrdinalIgnoreCase))
                                         {
                                             continue;
                                         }
@@ -195,7 +195,6 @@ namespace GimpsharpFsh
                             buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
                         }
 
-
                         image.Filename = filename;
 
                         return image;
@@ -203,7 +202,6 @@ namespace GimpsharpFsh
                 }
                 catch (Exception ex)
                 {
-                    // Console.WriteLine(ex.Message);
                     ErrorDlg("Error loading fsh", ex.Message, ex.StackTrace).Run();
                     return null;
                 }
@@ -499,7 +497,7 @@ namespace GimpsharpFsh
             BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-            Debugger.Launch();
+        //    Debugger.Launch();
 #endif
             try
             {
@@ -611,7 +609,7 @@ namespace GimpsharpFsh
                         saveimg.Bitmaps.Add(bmpitem);
                     }
                     saveimg.UpdateDirty();
-                    if (System.IO.Path.GetExtension(filename).Equals(".qfs"))
+                    if (System.IO.Path.GetExtension(filename).Equals(".qfs", StringComparison.OrdinalIgnoreCase))
                     {
                         saveimg.IsCompressed = true;
                     }
@@ -630,7 +628,7 @@ namespace GimpsharpFsh
                     }
                     if (mipbtn.Active)
                     {
-                        string filepath = null;
+                        string filepath = string.Empty;
                         for (int i = 3; i >= 0; i--)
                         {
                             if (mipimgs[i] != null)
