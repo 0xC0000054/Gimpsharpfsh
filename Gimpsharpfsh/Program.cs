@@ -69,156 +69,156 @@ namespace GimpsharpFsh
         }
         private string groupid = null;
         private string instanceid = null;
-        override protected Gimp.Image Load(string filename)
+        override protected Gimp.Image Load()
         {
-            if (File.Exists(filename))
-            {
+
 #if DEBUG
-            //    Debugger.Launch();
+             //   Debugger.Launch();
 #endif
-                try
+            try
+            {
+                string filename = string.Empty;
+                filename = ((FileStream)Reader.BaseStream).Name;
+
+
+                LoadSettings();
+                FSHImage loadfsh = new FSHImage();
+                BitmapItem bmpitem = new BitmapItem();
+
+                
+                loadfsh.Load(Reader.BaseStream);
+
+                int dirnum = -1;
+                string[] dirname = new string[loadfsh.Bitmaps.Count];
+                short[] width = new short[loadfsh.Bitmaps.Count];
+                short[] height = new short[loadfsh.Bitmaps.Count];
+
+                foreach (FSHDirEntry dir in loadfsh.Directory)
                 {
-                    LoadSettings();
-                    FSHImage loadfsh = new FSHImage();
-                    BitmapItem bmpitem = new BitmapItem();
+                    dirnum++;
+                    FSHEntryHeader entryhead = new FSHEntryHeader();
+                    entryhead = loadfsh.GetEntryHeader(dir.offset);
+                    width[dirnum] = entryhead.width;
+                    height[dirnum] = entryhead.height;
+                    dirname[dirnum] = Encoding.ASCII.GetString(dir.name);
+                }
 
-                    using (FileStream fs = new FileStream(filename, FileMode.Open, FileAccess.Read))
+
+                string tgistr = filename + ".TGI";
+                if ((!string.IsNullOrEmpty(filename)) && File.Exists(tgistr))
+                {
+                    using (StreamReader sr = new StreamReader(tgistr))
                     {
-                        loadfsh.Load(fs);
+                        string line;
+                        int lncnt = 0;
 
-                        int dirnum = -1;
-                        string[] dirname = new string[loadfsh.Bitmaps.Count];
-                        short[] width = new short[loadfsh.Bitmaps.Count];
-                        short[] height = new short[loadfsh.Bitmaps.Count];
-
-                        foreach (FSHDirEntry dir in loadfsh.Directory)
+                        while ((line = sr.ReadLine()) != null)
                         {
-                            dirnum++;
-                            FSHEntryHeader entryhead = new FSHEntryHeader();
-                            entryhead = loadfsh.GetEntryHeader(dir.offset);
-                            width[dirnum] = entryhead.width;
-                            height[dirnum] = entryhead.height;
-                            dirname[dirnum] = Encoding.ASCII.GetString(dir.name);
-                        }
-
-
-                        string tgistr = filename + ".TGI";
-                        if (File.Exists(tgistr))
-                        {
-                            using (StreamReader sr = new StreamReader(tgistr))
+                            lncnt++;
+                            if (!string.IsNullOrEmpty(line))
                             {
-                                string line;
-                                int lncnt = 0;
-
-                                while ((line = sr.ReadLine()) != null)
+                                if (line.Equals("7ab50e44", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    lncnt++;
-                                    if (!string.IsNullOrEmpty(line))
+                                    continue;
+                                }
+                                else
+                                {
+                                    if (lncnt == 3)
                                     {
-                                        if (line.Equals("7ab50e44", StringComparison.OrdinalIgnoreCase))
-                                        {
-                                            continue;
-                                        }
-                                        else
-                                        {
-                                            if (lncnt == 3)
-                                            {
-                                                groupid = line;
-                                            }
-                                            else if (lncnt == 5)
-                                            {
-                                                instanceid = line;
-                                            }
-                                        }
+                                        groupid = line;
+                                    }
+                                    else if (lncnt == 5)
+                                    {
+                                        instanceid = line;
                                     }
                                 }
                             }
                         }
-                        bool blendchecked = false;
-                        if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
-                        {
-                            blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
-                        }
-                        // to disable alpha blending
-                        if (filename.Contains("noblend"))
-                        {
-                            blendchecked = false;
-                        }
+                    }
+                }
+                bool blendchecked = false;
+                if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
+                {
+                    blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
+                }
+                // to disable alpha blending
+                if ((!string.IsNullOrEmpty(filename)) && filename.Contains("noblend"))
+                {
+                    blendchecked = false;
+                }
 
-                        Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
+                Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
 
-                        if (loadfsh.Bitmaps.Count > 1)
+                if (loadfsh.Bitmaps.Count > 1)
+                {
+                    for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
+                    {
+                        bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
+                        Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
+                        Bitmap alpha = null;
+                        if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
                         {
-                            for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
+                            alpha = new Bitmap(bitmap.Width, bitmap.Height);
+                            for (int y = 0; y < alpha.Height; y++)
                             {
-                                bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
-                                Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
-                                Bitmap alpha = null;
-                                if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
+                                for (int x = 0; x < alpha.Width; x++)
                                 {
-                                    alpha = new Bitmap(bitmap.Width, bitmap.Height);
-                                    for (int y = 0; y < alpha.Height; y++)
-                                    {
-                                        for (int x = 0; x < alpha.Width; x++)
-                                        {
-                                            alpha.SetPixel(x, y, Color.White);
-                                        }
-                                    }
+                                    alpha.SetPixel(x, y, Color.White);
                                 }
-                                else
-                                {
-                                    alpha = new Bitmap(bmpitem.Alpha);
-                                }
-                                buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked);
                             }
                         }
                         else
                         {
-                            bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
-                            Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
-                            Bitmap alpha = null;
-                            if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
-                            {
-                                alpha = new Bitmap(bitmap.Width, bitmap.Height);
-                                for (int y = 0; y < alpha.Height; y++)
-                                {
-                                    for (int x = 0; x < alpha.Width; x++)
-                                    {
-                                        alpha.SetPixel(x, y, Color.White);
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                alpha = new Bitmap(bmpitem.Alpha);
-                            }
-                            buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
+                            alpha = new Bitmap(bmpitem.Alpha);
                         }
-
-                        image.Filename = filename;
-
-                        return image;
+                        buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked);
                     }
                 }
-                catch (Exception ex)
+                else
                 {
-                    ErrorDlg("Error loading fsh", ex.Message, ex.StackTrace).Run();
-                    return null;
+                    bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
+                    Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
+                    Bitmap alpha = null;
+                    if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
+                    {
+                        alpha = new Bitmap(bitmap.Width, bitmap.Height);
+                        for (int y = 0; y < alpha.Height; y++)
+                        {
+                            for (int x = 0; x < alpha.Width; x++)
+                            {
+                                alpha.SetPixel(x, y, Color.White);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        alpha = new Bitmap(bmpitem.Alpha);
+                    }
+                    buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
                 }
+                if (!string.IsNullOrEmpty(filename))
+                {
+                    image.Filename = filename;
+                }
+
+                return image;
+               
             }
-            else
+            catch (Exception ex)
             {
+                ErrorDlg("Error loading fsh", ex.Message, ex.StackTrace).Run();
                 return null;
             }
+           
         }
-        private void buildlayer(Gimp.Image image, int layerpos,Bitmap fshbmp,Bitmap fshalpha, short fshwidth, short fshheight, bool alphablend)
+        private void buildlayer(Gimp.Image image, int layerpos, Bitmap fshbmp, Bitmap fshalpha, short fshwidth, short fshheight, bool alphablend)
         {
             Layer bglayer = new Layer(image, "Fsh Bitmap" + layerpos.ToString(), Gimp.ImageType.Rgba);
             image.AddLayer(bglayer, layerpos);
             if (alphablend)
             {
                 PixelRgn rgn = new PixelRgn(image.Layers[layerpos], true, false);
-                Bitmap destbmp = new Bitmap(fshbmp);
+                Bitmap destbmp = new Bitmap(fshbmp.Width, fshbmp.Height);
                 BitmapData bdata = fshbmp.LockBits(new System.Drawing.Rectangle(0, 0, fshbmp.Width, fshbmp.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 BitmapData aldata = fshalpha.LockBits(new System.Drawing.Rectangle(0, 0, fshalpha.Width, fshalpha.Height), ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
                 BitmapData destdata = destbmp.LockBits(new System.Drawing.Rectangle(0, 0, destbmp.Width, destbmp.Height), ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
@@ -497,7 +497,7 @@ namespace GimpsharpFsh
             BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-        //    Debugger.Launch();
+           Debugger.Launch();
 #endif
             try
             {
@@ -578,7 +578,7 @@ namespace GimpsharpFsh
                             savealphadata(tempbmp, multiitem, combo.Active, hd);
                             if (mipbtn.Active)
                             {
-                                Generatemips(multiitem);
+                               // Generatemips(layer, multiitem.BmpType);
                             }
                             saveimg.Bitmaps.Add(multiitem);
                         }
@@ -604,7 +604,7 @@ namespace GimpsharpFsh
                        
                         if (mipbtn.Active)
                         {
-                            Generatemips(bmpitem);
+                            Generatemips(image, 0, bmpitem.BmpType);
                         }
                         saveimg.Bitmaps.Add(bmpitem);
                     }
@@ -638,6 +638,7 @@ namespace GimpsharpFsh
                                 using (FileStream fstream = new FileStream(filepath, FileMode.OpenOrCreate, FileAccess.Write))
                                 {
                                     mipimgs[i].IsCompressed = saveimg.IsCompressed;
+                                    mipimgs[i].UpdateDirty();
                                     SaveFsh(fstream, mipimgs[i]);
                                 }
                                 if (groupid != null && instanceid != null)
@@ -649,8 +650,10 @@ namespace GimpsharpFsh
                         }
 
                     }
-
+                    
+                    im.Delete();
                     return true;
+                    
                 }
                 else
                 {
@@ -779,68 +782,118 @@ namespace GimpsharpFsh
            bmp.UnlockBits(data);
            return bmp;
        }
-       private void Generatemips(BitmapItem bmpitem)
+        /// <summary>
+        /// Gets the alpha map fron the scaled down Bitmap for the GenerateMips function
+        /// </summary>
+        /// <param name="buf">The scaled bitmap to extract the alpha from</param>
+        /// <returns>The resulting alpha map</returns>
+       private Bitmap AlphaMapfromScaledBitmap(Bitmap scaledbmp)
        {
-           if (bmpitem.Bitmap.Width >= 128 && bmpitem.Bitmap.Height >= 128)
+            Bitmap alpha = new Bitmap(scaledbmp.Width,scaledbmp.Height);
+
+		    for (int y = 0; y < alpha.Height; y++)
+            {
+                for (int x = 0; x < alpha.Width; x++)
+                {
+                    Color srcpxl = scaledbmp.GetPixel(x, y);
+                    alpha.SetPixel(x, y, Color.FromArgb(srcpxl.A,srcpxl.A, srcpxl.A));
+                }
+            } 
+
+            return alpha;
+       }
+
+       private Gimp.Image im = null;
+       /// <summary>
+       /// Generates the scaled down Mipmaps
+       /// </summary>
+       ///<param name="image">The source image</param>
+       /// <param name="layerindex">The index of the source layer to scale from</param>
+       /// <param name="BmpType">The FshBmpType of the original BitmapItem</param>
+       private void Generatemips(Gimp.Image image,int layerindex, FSHBmpType BmpType)
+       {
+           if (image.Width >= 128 && image.Height >= 128)
            {
                
                Bitmap[] bmps = new Bitmap[4];
                Bitmap[] alphas = new Bitmap[4];
 
                // 0 = 8, 1 = 16, 2 = 32, 3 = 64
-               System.Drawing.Image.GetThumbnailImageAbort abort = new System.Drawing.Image.GetThumbnailImageAbort(thabort);
-               if (bmpitem.Bitmap.Width >= 128 && bmpitem.Bitmap.Height >= 128)
+
+               int[] size = new int[4] { 8, 16, 32, 64 };        
+               int count = image.Layers.Count;
+               List<Layer> resizelayers = new List<Layer>(4) {null, null, null, null};           
+               im = new Gimp.Image(image);
+
+               for (int i = 3; i >= 0; i--)
+               {   
+                   im.Scale(size[i], size[i], InterpolationType.Cubic);
+
+                   Layer copy = im.Layers[layerindex];
+
+                   /*if (Gimp.Gimp.Version.Major >= 2 && Gimp.Gimp.Version.Minor >= 6)
+                   {
+                       Debug.WriteLine("2.6.0 or newer");
+                   }*/
+                   /*Drawable dw = copy.Scale(0, 0, size[i], size[i], TransformDirection.Forward, InterpolationType.Cubic, true, 4, false);
+                   PixelRgn pr = new PixelRgn(dw,false,false);
+                   byte[] buf = new byte[dw.Width * dw.Height * dw.Bpp];
+                   buf = pr.GetRect(0,0,dw.Width,dw.Height);*/
+                   //copy.Scale(size[i], size[i], false, InterpolationType.Cubic); 
+                  
+                   PixelRgn pr = new PixelRgn(copy, true, false);
+                   byte[] buf = new byte[copy.Width * copy.Height * copy.Bpp];
+                   buf = pr.GetRect(0, 0, copy.Width, copy.Height);
+
+                   bmps[i] = BitsToBitmapRGB32(buf, copy.Width, copy.Height);
+
+#if DEBUG
+                   bmps[i].Save(@"C:\Dev_projects\sc4\gimpsharpfsh\Gimpsharpfsh\bin\Debug\scalebmp" + i.ToString() + ".png", ImageFormat.Png);
+#endif
+               }
+              
+               //alpha
+               for (int i = 3; i >= 0; i--)
                {
-                   
-                   Bitmap bmp = new Bitmap(bmpitem.Bitmap);
-                   bmps[0] = (Bitmap)bmp.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
-                   bmps[1] = (Bitmap)bmp.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
-                   bmps[2] = (Bitmap)bmp.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
-                   bmps[3] = (Bitmap)bmp.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
-                   //alpha
-                   Bitmap alpha = new Bitmap(bmpitem.Alpha);
-                   alphas[0] = (Bitmap)alpha.GetThumbnailImage(8, 8, abort, IntPtr.Zero);
-                   alphas[1] = (Bitmap)alpha.GetThumbnailImage(16, 16, abort, IntPtr.Zero);
-                   alphas[2] = (Bitmap)alpha.GetThumbnailImage(32, 32, abort, IntPtr.Zero);
-                   alphas[3] = (Bitmap)alpha.GetThumbnailImage(64, 64, abort, IntPtr.Zero);
-               
-                   if (mipimgs == null)
+                   alphas[i] = AlphaMapfromScaledBitmap(bmps[i]);
+
+#if DEBUG
+                   alphas[i].Save(@"C:\Dev_projects\sc4\gimpsharpfsh\Gimpsharpfsh\bin\Debug\scaleal" + i.ToString() + ".png", ImageFormat.Png);
+#endif
+               }
+           
+               if (mipimgs == null)
+               {
+                   mipimgs = new FSHImage[4];
+               }
+               for (int i = 0; i < 4; i++)
+               {
+                   if (bmps[i] != null && alphas[i] != null)
                    {
-                       mipimgs = new FSHImage[4];
-                   }
-                   for (int i = 0; i < 4; i++)
-                   {
-                       if (bmps[i] != null && alphas[i] != null)
+                       BitmapItem mipitm = new BitmapItem();
+                       mipitm.Bitmap = bmps[i];
+                       mipitm.Alpha = alphas[i];
+                       if (BmpType == FSHBmpType.DXT3 || BmpType == FSHBmpType.ThirtyTwoBit)
                        {
-                           BitmapItem mipitm = new BitmapItem();
-                           mipitm.Bitmap = bmps[i];
-                           mipitm.Alpha = alphas[i];
-                           if (alphas[i].GetPixel(0, 0).ToArgb() == Color.Black.ToArgb())
-                           {
-                               mipitm.BmpType = FSHBmpType.DXT3;
-                           }
-                           else
-                           {
-                               mipitm.BmpType = FSHBmpType.DXT1;
-                           }
-                           if (mipimgs[i] == null)
-                           {
-                               mipimgs[i] = new FSHImage();
-                           }
-                           if (mipimgs[i] != null)
-                           {
-                               mipimgs[i].Bitmaps.Add(mipitm);
-                               mipimgs[i].UpdateDirty();
-                           }
+                           mipitm.BmpType = FSHBmpType.DXT3;
+                       }
+                       else
+                       {
+                           mipitm.BmpType = FSHBmpType.DXT1;
+                       }
+                       if (mipimgs[i] == null)
+                       {
+                           mipimgs[i] = new FSHImage();
+                       }
+                       if (mipimgs[i] != null)
+                       {
+                           mipimgs[i].Bitmaps.Add(mipitm);
                        }
                    }
                }
            }
        }
-       private bool thabort()
-       {
-           return false;
-       }
+
        private string GetFileName(string path, string add)
        {
            return System.IO.Path.Combine(System.IO.Path.GetDirectoryName(path), System.IO.Path.GetFileNameWithoutExtension(path) + add + System.IO.Path.GetExtension(path));
