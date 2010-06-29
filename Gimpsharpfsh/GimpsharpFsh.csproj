@@ -63,9 +63,9 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\..\Dev_projects\gimp-sharp-0.15\lib\gimp-sharp\gtk-sharp\gdk-sharp.dll</HintPath>
     </Reference>
-    <Reference Include="gimp-sharp, Version=0.15.0.0, Culture=neutral, processorArchitecture=MSIL">
+    <Reference Include="gimp-sharp, Version=0.16.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
-      <HintPath>..\..\..\gimp-sharp-0.15\lib\gimp-sharp.dll</HintPath>
+      <HintPath>..\..\..\gimp-sharp-0.16\lib\gimp-sharp.dll</HintPath>
     </Reference>
     <Reference Include="glib-sharp, Version=2.8.0.0, Culture=neutral, PublicKeyToken=35e10195dab3c99f">
       <SpecificVersion>False</SpecificVersion>
@@ -123,6 +123,7 @@
   </Target>
   -->
   <PropertyGroup>
-    <PostBuildEvent>copy $(TargetPath) "C:\Program Files\GIMP-2.0\lib\gimp\2.0\plug-ins"</PostBuildEvent>
+    <PostBuildEvent>copy $(TargetPath) "C:\Program Files\GIMP-2.0\lib\gimp\2.0\plug-ins"
+if $(ConfigurationName) == "Debug" copy "$(TargetDir)\$(TargetName).pdb" "C:\Program Files\GIMP-2.0\lib\gimp\2.0\plug-ins"</PostBuildEvent>
   </PropertyGroup>
 </Project>
