@@ -506,7 +506,8 @@ namespace GimpsharpFsh
                 bool mipchecked = false;
                 bool hd = false;
                 bool fshwritechecked = false;
-                if (image.Width >= 128 && image.Height >= 128)
+                 
+                if ((image.Width >= 128 && image.Height >= 128) && (Gimp.Gimp.Version.Major >= 2 && Gimp.Gimp.Version.Minor >= 6))
                 {
                     mipenabled = true;
                 }
