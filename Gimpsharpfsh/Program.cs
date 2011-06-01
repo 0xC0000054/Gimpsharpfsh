@@ -1,16 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.IO;
-using System.Drawing;
-using System.Xml;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
+using System.Drawing;
 using System.Drawing.Imaging;
-using Gimp;
-using Gtk;
-using FSHLib;
+using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using FSHLib;
+using Gimp;
+using GimpsharpFsh.Properties;
+using Gtk;
 
 namespace GimpsharpFsh
 {
@@ -48,8 +48,8 @@ namespace GimpsharpFsh
         protected override void Query()
         {
             base.Query();
-            RegisterLoadHandler("fsh,qfs", "");
-            RegisterSaveHandler("fsh,qfs", "");
+            RegisterLoadHandler("fsh", "");
+            RegisterSaveHandler("fsh", "");
         }
         private GimpDialog ErrorDlg(string title, string exmessage, string stack)
         {
@@ -67,13 +67,14 @@ namespace GimpsharpFsh
             errordlg.ShowAll();
             return errordlg;
         }
-        private string groupid = null;
-        private string instanceid = null;
-        override protected Gimp.Image Load()
+
+        private int fshType = -1;
+
+        protected override Gimp.Image Load()
         {
 
 #if DEBUG
-             //   Debugger.Launch();
+               Debugger.Launch();
 #endif
             try
             {
@@ -82,138 +83,132 @@ namespace GimpsharpFsh
 
 
                 LoadSettings();
-                FSHImage loadfsh = new FSHImage();
-                BitmapItem bmpitem = new BitmapItem();
-
-                
-                loadfsh.Load(Reader.BaseStream);
-
-                int dirnum = -1;
-                string[] dirname = new string[loadfsh.Bitmaps.Count];
-                short[] width = new short[loadfsh.Bitmaps.Count];
-                short[] height = new short[loadfsh.Bitmaps.Count];
-
-                foreach (FSHDirEntry dir in loadfsh.Directory)
+                using (FshImageLoad loadfsh = new FshImageLoad(Reader.BaseStream))
                 {
-                    dirnum++;
-                    FSHEntryHeader entryhead = new FSHEntryHeader();
-                    entryhead = loadfsh.GetEntryHeader(dir.offset);
-                    width[dirnum] = entryhead.width;
-                    height[dirnum] = entryhead.height;
-                    dirname[dirnum] = Encoding.ASCII.GetString(dir.name);
-                }
+                    BitmapItem bmpitem = new BitmapItem();
 
 
-                string tgistr = filename + ".TGI";
-                if ((!string.IsNullOrEmpty(filename)) && File.Exists(tgistr))
-                {
-                    using (StreamReader sr = new StreamReader(tgistr))
+                    loadfsh.Load(Reader.BaseStream);
+
+                    string[] dirname = new string[loadfsh.Bitmaps.Count];
+                    short[] width = new short[loadfsh.Bitmaps.Count];
+                    short[] height = new short[loadfsh.Bitmaps.Count];
+
+                    for (int i = 0; i < loadfsh.Bitmaps.Count; i++)
                     {
-                        string line;
-                        int lncnt = 0;
-
-                        while ((line = sr.ReadLine()) != null)
-                        {
-                            lncnt++;
-                            if (!string.IsNullOrEmpty(line))
-                            {
-                                if (line.Equals("7ab50e44", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    continue;
-                                }
-                                else
-                                {
-                                    if (lncnt == 3)
-                                    {
-                                        groupid = line;
-                                    }
-                                    else if (lncnt == 5)
-                                    {
-                                        instanceid = line;
-                                    }
-                                }
-                            }
-                        }
+                        FSHEntryHeader entryhead = loadfsh.EntryHeaders[i];
+                        width[i] = entryhead.width;
+                        height[i] = entryhead.height;
+                        dirname[i] = Encoding.ASCII.GetString(loadfsh.Directories[i].name);
                     }
-                }
-                bool blendchecked = false;
-                if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
-                {
-                    blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
-                }
-                // to disable alpha blending
-                if ((!string.IsNullOrEmpty(filename)) && filename.Contains("noblend"))
-                {
-                    blendchecked = false;
-                }
 
-                Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
+                    string tgistr = filename + ".TGI";
 
-                if (loadfsh.Bitmaps.Count > 1)
-                {
-                    for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
+                    if ((!string.IsNullOrEmpty(filename)) && File.Exists(tgistr))
                     {
-                        bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
-                        Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
-                        Bitmap alpha = null;
-                        if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
+
+                        using (StreamReader sr = new StreamReader(tgistr))
                         {
-                            alpha = new Bitmap(bitmap.Width, bitmap.Height);
-                            for (int y = 0; y < alpha.Height; y++)
+                            string line;
+                            int lncnt = 0;
+
+                            while ((line = sr.ReadLine()) != null)
                             {
-                                for (int x = 0; x < alpha.Width; x++)
+                                lncnt++;
+                                if (!string.IsNullOrEmpty(line))
                                 {
-                                    alpha.SetPixel(x, y, Color.White);
+                                    if (line.Equals("7ab50e44", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        if (lncnt == 3)
+                                        {
+                                            groupid = line;
+                                        }
+                                        else if (lncnt == 5)
+                                        {
+                                            instanceid = line;
+                                        }
+                                    }
                                 }
                             }
                         }
-                        else
-                        {
-                            alpha = new Bitmap(bmpitem.Alpha);
-                        }
-                        buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked);
+
+
                     }
-                }
-                else
-                {
-                    bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
-                    Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
-                    Bitmap alpha = null;
-                    if (bmpitem.BmpType == FSHBmpType.TwentyFourBit)
+                    bool blendchecked = false;
+                    if (!string.IsNullOrEmpty(settings.GetSetting("loaddlg/alphablend", "True")))
                     {
-                        alpha = new Bitmap(bitmap.Width, bitmap.Height);
-                        for (int y = 0; y < alpha.Height; y++)
+                        blendchecked = bool.Parse(settings.GetSetting("loaddlg/alphablend", "True"));
+                    }
+                    // to disable alpha blending
+                    if ((!string.IsNullOrEmpty(filename)) && filename.Contains("noblend"))
+                    {
+                        blendchecked = false;
+                    }
+
+                    Gimp.Image image = new Gimp.Image(width[0], height[0], ImageBaseType.Rgb);
+
+                    switch (loadfsh.Bitmaps[0].BmpType)
+                    {
+                        case FSHBmpType.TwentyFourBit:
+                            fshType = 0;
+                            break;
+                        case FSHBmpType.ThirtyTwoBit:
+                            fshType = 1;
+                            break;
+                        case FSHBmpType.DXT1:
+                            fshType = 2;
+                            break;
+                        case FSHBmpType.DXT3:
+                            fshType = 3;
+                            break;
+                    }
+
+                    if (loadfsh.Bitmaps.Count > 1)
+                    {
+                        for (int cnt = 0; cnt < loadfsh.Bitmaps.Count; cnt++)
                         {
-                            for (int x = 0; x < alpha.Width; x++)
-                            {
-                                alpha.SetPixel(x, y, Color.White);
-                            }
+                            bmpitem = (BitmapItem)loadfsh.Bitmaps[cnt];
+                            Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
+                            Bitmap alpha = new Bitmap(bmpitem.Alpha);
+
+                            buildlayer(image, cnt, bitmap, alpha, width[cnt], height[cnt], blendchecked, fshType);
                         }
                     }
                     else
                     {
-                        alpha = new Bitmap(bmpitem.Alpha);
+                        bmpitem = (BitmapItem)loadfsh.Bitmaps[0];
+                        Bitmap bitmap = new Bitmap(bmpitem.Bitmap);
+                        Bitmap alpha = new Bitmap(bmpitem.Alpha);
+
+                        buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked, fshType);
                     }
-                    buildlayer(image, 0, bitmap, alpha, width[0], height[0], blendchecked);
-                }
-                if (!string.IsNullOrEmpty(filename))
-                {
-                    image.Filename = filename;
+                    if (!string.IsNullOrEmpty(filename))
+                    {
+                        image.Filename = filename;
+                    }
+                    
+                    return image;
                 }
 
-                return image;
-               
             }
             catch (Exception ex)
             {
-                ErrorDlg("Error loading fsh", ex.Message, ex.StackTrace).Run();
+                ErrorDlg(Resources.ErrorLoadingCaption, ex.Message, ex.StackTrace).Run();
                 return null;
             }
            
         }
-        private void buildlayer(Gimp.Image image, int layerpos, Bitmap fshbmp, Bitmap fshalpha, short fshwidth, short fshheight, bool alphablend)
+
+        private void buildlayer(Gimp.Image image, int layerpos, Bitmap fshbmp, Bitmap fshalpha, short fshwidth, short fshheight, bool alphablend, int fshType)
         {
-            Layer bglayer = new Layer(image, "Fsh Bitmap" + layerpos.ToString(), Gimp.ImageType.Rgba);
+            Layer bglayer = new Layer(image, Resources.FshLayerTitle + layerpos.ToString(), Gimp.ImageType.Rgba);
+
+
+
             image.AddLayer(bglayer, layerpos);
             if (alphablend)
             {
@@ -292,13 +287,15 @@ namespace GimpsharpFsh
                 rgn.SetRect(tmpdata, 0, 0, fshwidth, fshheight);
             }
         }
+        private string groupid;
+        private string instanceid;
         private void WriteTgi(string filename, int zoom)
         {
-            char endreg = Convert.ToChar("");
-            char end64 = Convert.ToChar("");
-            char end32 = Convert.ToChar("");
-            char end16 = Convert.ToChar("");
-            char end8 = Convert.ToChar("");
+            char endreg = ' ';
+            char end64 = ' ';
+            char end32 = ' ';
+            char end16 = ' ';
+            char end8 = ' ';
             try
             {
                 using (FileStream fs = new FileStream(filename + ".TGI", FileMode.OpenOrCreate, FileAccess.Write))
@@ -308,27 +305,27 @@ namespace GimpsharpFsh
 
                         if (instanceid.ToUpper().EndsWith("E") || instanceid.ToUpper().EndsWith("D") || instanceid.ToUpper().EndsWith("C") || instanceid.ToUpper().EndsWith("B") || instanceid.ToUpper().EndsWith("A"))
                         {
-                            endreg = Convert.ToChar("E");
-                            end64 = Convert.ToChar("D");
-                            end32 = Convert.ToChar("C");
-                            end16 = Convert.ToChar("B");
-                            end8 = Convert.ToChar("A");
+                            endreg = 'E';
+                            end64 = 'D';
+                            end32 = 'C';
+                            end16 = 'B';
+                            end8 = 'A';
                         }
                         else if (instanceid.ToUpper().EndsWith("9") || instanceid.ToUpper().EndsWith("8") || instanceid.ToUpper().EndsWith("7") || instanceid.ToUpper().EndsWith("6") || instanceid.ToUpper().EndsWith("5"))
                         {
-                            endreg = Convert.ToChar("9");
-                            end64 = Convert.ToChar("8");
-                            end32 = Convert.ToChar("7");
-                            end16 = Convert.ToChar("6");
-                            end8 = Convert.ToChar("5");
+                            endreg = '9';
+                            end64 = '8';
+                            end32 = '7';
+                            end16 = '6';
+                            end8 = '5';
                         }
                         else if (instanceid.ToUpper().EndsWith("0") || instanceid.ToUpper().EndsWith("1") || instanceid.ToUpper().EndsWith("2") || instanceid.ToUpper().EndsWith("3") || instanceid.ToUpper().EndsWith("4"))
                         {
-                            endreg = Convert.ToChar("4");
-                            end64 = Convert.ToChar("3");
-                            end32 = Convert.ToChar("2");
-                            end16 = Convert.ToChar("1");
-                            end8 = Convert.ToChar("0");
+                            endreg = '4';
+                            end64 = '3';
+                            end32 = '2';
+                            end16 = '1';
+                            end8 = '0';
                         }
                         sw.WriteLine("7ab50e44\t\n");
                         sw.WriteLine(string.Format("{0:X8}", groupid + "\n"));
@@ -403,8 +400,7 @@ namespace GimpsharpFsh
         /// <param name="sourcebmp">The bitmap of the gimp layer</param>
         /// <param name="bmpitem">The item to save the alpha to</param>
         /// <param name="fshtype">The type of Fsh</param>
-        /// <param name="hd">Is the Hd bitmap type enabled</param>
-        private void savealphadata(Bitmap sourcebmp, BitmapItem bmpitem, int fshtype, bool hd)
+        private void savealphadata(Bitmap sourcebmp, BitmapItem bmpitem, int fshtype)
         {
             Bitmap alphamap = new Bitmap(sourcebmp.Width, sourcebmp.Height);
             
@@ -417,36 +413,23 @@ namespace GimpsharpFsh
                 }
             }         
             bmpitem.Alpha = alphamap;
-            if (hd)
+
+            switch (fshtype)
             {
-                switch (fshtype)
-                {
-                    case 0:
-                        bmpitem.BmpType = FSHBmpType.ThirtyTwoBit;
-                        break;
-                    case 1:
-                        bmpitem.BmpType = FSHBmpType.TwentyFourBit;
-                        break;
-                    case 2:
-                        bmpitem.BmpType = FSHBmpType.DXT1;
-                        break;
-                    case 3:
-                        bmpitem.BmpType = FSHBmpType.DXT3;
-                        break;
-                }
+                case 0:
+                    bmpitem.BmpType = FSHBmpType.ThirtyTwoBit;
+                    break;
+                case 1:
+                    bmpitem.BmpType = FSHBmpType.TwentyFourBit;
+                    break;
+                case 2:
+                    bmpitem.BmpType = FSHBmpType.DXT1;
+                    break;
+                case 3:
+                    bmpitem.BmpType = FSHBmpType.DXT3;
+                    break;
             }
-            else
-            {
-                switch (fshtype)
-                {
-                    case 0:
-                        bmpitem.BmpType = FSHBmpType.DXT1;
-                        break;
-                    case 1:
-                        bmpitem.BmpType = FSHBmpType.DXT3;
-                        break;
-                }
-            }
+           
             #if DEBUG
             alphamap.Save(@"C:\Dev_projects\sc4\gimpsharpfsh\Gimpsharpfsh\bin\Debug\alphamap.png", ImageFormat.Png);
             #endif
@@ -463,27 +446,25 @@ namespace GimpsharpFsh
         /// <param name="mipenabled">enable the generate mips checkbox</param>
         /// <param name="mipchecked">check the generate mips checkbox</param>
         /// <returns></returns>
-        protected GimpDialog CreateSaveDialog(bool hd, int cboindex, bool mipenabled, bool mipchecked, bool fshwritechecked)
+        protected GimpDialog CreateSaveDialog(int cboindex, bool mipenabled, bool mipchecked, bool fshwritechecked)
         {
-            gimp_ui_init("Fsh Save", false);
-            GimpDialog dialog = new GimpDialog("Fsh Save", "Fsh Save", IntPtr.Zero, DialogFlags.Modal, null, null,"Ok",ResponseType.Ok,"Cancel",ResponseType.Cancel);
+            gimp_ui_init(Resources.SaveDialogText, false);
+            GimpDialog dialog = new GimpDialog(Resources.SaveDialogText, Resources.SaveDialogText, IntPtr.Zero, DialogFlags.Modal, null, null, Resources.OkBtnText, ResponseType.Ok, Resources.CancelBtnText, ResponseType.Cancel);
             VBox box1 = new VBox(false, 6) {BorderWidth = 6};
             dialog.VBox.PackStart(box1, true, true, 6);
             combo = ComboBox.NewText();
-            if (hd)
-            {
-                combo.AppendText("Hd Fsh");
-                combo.AppendText("Hd base Fsh");
-            }
-            combo.AppendText("Dxt1");
-            combo.AppendText("Dxt3");
+            
+            combo.AppendText(Resources.HDBaseFsh);      
+            combo.AppendText(Resources.HDFsh);
+            combo.AppendText(Resources.DXT1);
+            combo.AppendText(Resources.DXT3);
             combo.Active = cboindex;
             box1.PackStart(combo, true, false, 3);
-            mipbtn = new CheckButton("Generate Mipmaps");
+            mipbtn = new CheckButton(Resources.GenMipmaps);
             mipbtn.Active = mipchecked;
             mipbtn.Visible = mipenabled;
             box1.PackStart(mipbtn,true,false,3);
-            fshwritecb = new CheckButton("Fshwrite Compression");
+            fshwritecb = new CheckButton(Resources.FshWriteText);
             fshwritecb.Active = fshwritechecked;
             box1.PackStart(fshwritecb, true, false, 3);
             dialog.ShowAll();
@@ -497,17 +478,16 @@ namespace GimpsharpFsh
             BitmapItem bmpitem = new BitmapItem();  
             PixelRgn pr = new PixelRgn(drawable, false, false);
 #if DEBUG
-           Debugger.Launch();
+            Debugger.Launch();
 #endif
             try
             {
                 LoadSettings();
                 bool mipenabled = false;
                 bool mipchecked = false;
-                bool hd = false;
                 bool fshwritechecked = false;
-                 
-                if ((image.Width >= 128 && image.Height >= 128) && (Gimp.Gimp.Version.Major >= 2 && Gimp.Gimp.Version.Minor >= 6))
+
+                if (image.Width >= 128 && image.Height >= 128)
                 {
                     mipenabled = true;
                 }
@@ -523,31 +503,21 @@ namespace GimpsharpFsh
                 {
                     fshwritechecked = bool.Parse(settings.GetSetting("savedlg/fshwrite_checked", bool.TrueString));
                 }
-                hd = (image.Width >= 256 && image.Height >= 256) ? true : false; // is the image hd size
-                int selindex = 0;
-                if (GetAlphaType(image)) // is the alpha dxt3 or 32-bit?
+                int selindex = 2;
+                if (fshType != -1)
                 {
-                    if (hd)// 32-bit RGBA has an index of 0 on the combo
-                    {
-                        selindex = 0; // 32-bit RGBA
-                    }
-                    else
-                    {
-                        selindex = 1; // Dxt3
-                    }
+                    selindex = fshType;
+                }
+                if (System.IO.Path.GetExtension(filename).Equals(".qfs", StringComparison.OrdinalIgnoreCase))
+                {
+                    saveimg.IsCompressed = true;
                 }
                 else
                 {
-                    if (hd) // 24-bit RGB has an index of 1 on the combo
-                    {
-                        selindex = 1; // 24-bit RGB 
-                    }
-                    else
-                    {
-                        selindex = 0; // Dxt1 
-                    }
+                    saveimg.IsCompressed = false;
                 }
-                GimpDialog dlg = CreateSaveDialog(hd,selindex, mipenabled, mipchecked, fshwritechecked);
+              
+                GimpDialog dlg = CreateSaveDialog(selindex, mipenabled, mipchecked, fshwritechecked);
                 if (dlg.Run() == ResponseType.Ok)
                 {
                     settings.PutSetting("savedlg/typeSelected", combo.Active);
@@ -556,6 +526,7 @@ namespace GimpsharpFsh
 
                     if (image.Layers.Count > 1)
                     {
+
                         Bitmap tempbmp = new Bitmap(image.Width, image.Height);
 
                         for (int i = 0; i < image.Layers.Count; i++)
@@ -576,10 +547,10 @@ namespace GimpsharpFsh
 #endif
                             multiitem.Bitmap = tempbmp;
 
-                            savealphadata(tempbmp, multiitem, combo.Active, hd);
+                            savealphadata(tempbmp, multiitem, combo.Active);
                             if (mipbtn.Active)
                             {
-                               // Generatemips(layer, multiitem.BmpType);
+                                Generatemips(image, i, multiitem.BmpType);
                             }
                             saveimg.Bitmaps.Add(multiitem);
                         }
@@ -601,7 +572,7 @@ namespace GimpsharpFsh
                     tempbmp.Save(@"C:\Dev_projects\sc4\gimpsharpfsh\Gimpsharpfsh\bin\Debug\tempbmp.png", ImageFormat.Png);
 #endif
                         bmpitem.Bitmap = tempbmp;
-                        savealphadata(tempbmp, bmpitem, combo.Active, hd);
+                        savealphadata(tempbmp, bmpitem, combo.Active);
                        
                         if (mipbtn.Active)
                         {
@@ -610,20 +581,12 @@ namespace GimpsharpFsh
                         saveimg.Bitmaps.Add(bmpitem);
                     }
                     saveimg.UpdateDirty();
-                    if (System.IO.Path.GetExtension(filename).Equals(".qfs", StringComparison.OrdinalIgnoreCase))
-                    {
-                        saveimg.IsCompressed = true;
-                    }
-                    else
-                    {
-                        saveimg.IsCompressed = false;
-                    }
-                    
+
                     using (FileStream fs = new FileStream(filename, FileMode.OpenOrCreate, FileAccess.Write))
                     {
                         SaveFsh(fs, saveimg);
                     }
-                    if (groupid != null && instanceid != null)
+                    if (!string.IsNullOrEmpty(groupid) && !string.IsNullOrEmpty(instanceid))
                     {
                         WriteTgi(filename + ".TGI", 4);
                     }
@@ -642,7 +605,7 @@ namespace GimpsharpFsh
                                     mipimgs[i].UpdateDirty();
                                     SaveFsh(fstream, mipimgs[i]);
                                 }
-                                if (groupid != null && instanceid != null)
+                                if (!string.IsNullOrEmpty(groupid) && !string.IsNullOrEmpty(instanceid))
                                 {
                                     WriteTgi(filepath + ".TGI", i);
                                 }
@@ -651,8 +614,11 @@ namespace GimpsharpFsh
                         }
 
                     }
-                    
-                    im.Delete();
+
+                    if (im != null)
+                    {
+                        im.Delete();
+                    } 
                     return true;
                     
                 }
@@ -663,7 +629,7 @@ namespace GimpsharpFsh
             }
             catch (Exception ex)
             {
-                ErrorDlg("Error saving fsh", ex.Message, ex.StackTrace).Run();
+                ErrorDlg(Resources.ErrorSavingCaption, ex.Message, ex.StackTrace).Run();
                 return false;
             }
         }
@@ -720,35 +686,6 @@ namespace GimpsharpFsh
             return result;
         }
 
-        private bool GetAlphaType(Gimp.Image image)
-        {
-            bool dxt3alpha = false; 
-            if (!image.Layers[0].HasAlpha)
-            {
-                image.Layers[0].AddAlpha();
-            }
-            Layer layer = image.Layers[0];
-            PixelRgn pxlrgn = new PixelRgn(layer, false, false);
-            byte[] buf = new byte[layer.Width * layer.Height * layer.Bpp];
-            buf = pxlrgn.GetRect(0, 0, layer.Width, layer.Height);
-
-            using (Bitmap tempbmp = BitsToBitmapRGB32(buf, image.Width, image.Height))
-            {
-                for (int y = 0; y < tempbmp.Height; y++)
-                {
-                    for (int x = 0; x < tempbmp.Width; x++)
-                    {
-                        Color srcpxl = tempbmp.GetPixel(x, y);
-
-                        if (srcpxl.A < 255)
-                        {
-                            dxt3alpha = true;
-                        }
-                    }
-                }     
-            }
-            return dxt3alpha;
-       }
        private Bitmap BitsToBitmapRGB32(Byte[] bytes, int width, int height)
        {
            //swap RGBA to BGRA
