@@ -177,4 +177,7 @@
   <data name="HDFsh" xml:space="preserve">
     <value>HD Fsh</value>
   </data>
+  <data name="UnsupportedCompressionFormat" xml:space="preserve">
+    <value>Unsupported compression format.</value>
+  </data>
 </root>
