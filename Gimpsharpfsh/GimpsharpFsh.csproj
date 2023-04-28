@@ -85,6 +85,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="DXTComp.cs" />
     <Compile Include="ExtensionAttribute.cs">
       <SubType>Code</SubType>
     </Compile>
