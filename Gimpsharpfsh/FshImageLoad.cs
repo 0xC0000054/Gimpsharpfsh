@@ -64,7 +64,7 @@ namespace GimpsharpFsh
                 return entries;
             }
         }
-               
+
         private static int GetBmpDataSize(int width, int height, FshFileFormat code)
         {
             int size = 0;
@@ -105,7 +105,7 @@ namespace GimpsharpFsh
             {
                 throw new FormatException(Resources.InvalidFshFile);
             }
-            
+
             MemoryStream ms = null;
             byte[] compSig = new byte[2];
 
@@ -132,11 +132,11 @@ namespace GimpsharpFsh
                     ms = new MemoryStream(bytes);
                 }
             }
-           
-            try 
-	        {	
+
+            try
+            {
                 header = new FSHHeader(){ SHPI = new byte[4], dirID = new byte[4] };
-		        ms.Read(header.SHPI, 0, 4);
+                ms.Read(header.SHPI, 0, 4);
 
                 if (Encoding.ASCII.GetString(header.SHPI) != "SHPI")
                 {
@@ -158,15 +158,15 @@ namespace GimpsharpFsh
                 }
 
                 for (int i = 0; i < nBmps; i++)
-			    {
-			        ms.Seek((long)dirs[i].offset, SeekOrigin.Begin);
+                {
+                    ms.Seek((long)dirs[i].offset, SeekOrigin.Begin);
                     int code = (ms.ReadInt32() & 0x7f);
 
                     if (code == 0x7b || code == 0x7e || code == 0x78 || code == 0x6d)
-	                {
+                    {
                         throw new FormatException(Resources.UnsupportedFshFormat);
-	                }
-			    }
+                    }
+                }
                 int size = header.size;
 
 
@@ -293,8 +293,8 @@ namespace GimpsharpFsh
                         int destSize = width * height * 4;
                         int destStride = width * 4;
 
-                        long bmppos = (long)(dir.offset + 16);         
-                        
+                        long bmppos = (long)(dir.offset + 16);
+
                         byte[] buf = new byte[dataSize];
                         ms.Seek(bmppos, SeekOrigin.Begin);
                         ms.ProperRead(buf, buf.Length);
@@ -324,7 +324,7 @@ namespace GimpsharpFsh
                                         {
                                             dst[0] = src[2]; // red
                                             dst[1] = src[1]; // green
-                                            dst[2] = src[0]; // blue 
+                                            dst[2] = src[0]; // blue
                                             dst[3] = src[3]; // alpha
 
                                             src += 4;
@@ -362,7 +362,7 @@ namespace GimpsharpFsh
                                 break;
                             case 0x60:
                             case 0x61:
-                            
+
                                 item.ImageData = DXTComp.UnpackDXT(buf, width, height, (code == 0x60));
                                 break;
                         }
@@ -372,18 +372,18 @@ namespace GimpsharpFsh
                     }
 
                 }
-	        }
-	        catch (Exception)
-	        {
-		        throw;
-	        }
+            }
+            catch (Exception)
+            {
+                throw;
+            }
             finally
             {
                 if (ms != null)
-	            {
-		            ms.Dispose();
+                {
+                    ms.Dispose();
                     ms = null;
-	            }
+                }
             }
         }
 
